@@ -4,6 +4,7 @@ from PIL import Image
 from ultralytics import YOLO
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pdf2image import convert_from_path
 
 # Import your utility functions
@@ -18,6 +19,14 @@ best_model_path = "./model_creation/runs/detect/train5"
 object_detection_model = YOLO(os.path.join(best_model_path, "weights/best.pt"))
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins for now; specify origins in production
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allow all headers
+)
 
 UPLOAD_DIR = "uploads"
 RESULT_DIR = "result"
