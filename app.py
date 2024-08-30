@@ -3,9 +3,9 @@ import numpy as np
 from PIL import Image
 from ultralytics import YOLO
 from fastapi import FastAPI, File, UploadFile
-from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pdf2image import convert_from_path
+import shutil
 
 # Import your utility functions
 from utils.predict_bounding_boxes import predict_bounding_boxes
@@ -13,6 +13,17 @@ from utils.manga_ocr import get_text_from_image
 from utils.translate_manga import translate_manga
 from utils.process_contour import process_contour
 from utils.write_text_on_image import add_text
+
+from dotenv import load_dotenv
+from supabase import create_client, Client
+
+from datetime import datetime 
+
+load_dotenv()
+supabase_url=os.getenv("SUPABASE_URL")
+supabase_key=os.getenv("SUPABASE_ANON_KEY")
+
+supabase: Client = create_client(supabase_url, supabase_key)
 
 # Load the object detection model
 best_model_path = "./model_creation/runs/detect/train5"
@@ -83,7 +94,7 @@ def process_manga_pdf(pdf_path):
                 image = np.array(image)
 
                 previous_positions = []
-                copter_diff = 100
+                copter_diff = 0
 
                 for result in results:
                     x1, y1, x2, y2 = result[:4]
@@ -120,6 +131,17 @@ def process_manga_pdf(pdf_path):
 
 @app.post("/upload-pdf/")
 async def upload_pdf(file: UploadFile = File(...)):
+    folder = "uploads"
+    for filename in os.listdir(folder):
+        file_path = os.path.join(folder, filename)
+        try:
+            if os.path.isfile(file_path) or os.path.islink(file_path):
+                os.unlink(file_path)  # Delet file
+            elif os.path.isdir(file_path):
+                shutil.rmtree(file_path)  # Delete file
+        except Exception as e:
+            print(f'Failed to delete {file_path}. Reason: {e}')
+
     file_location = os.path.join(UPLOAD_DIR, file.filename)
     with open(file_location, "wb") as f:
         f.write(await file.read())
@@ -127,8 +149,13 @@ async def upload_pdf(file: UploadFile = File(...)):
     # Process the PDF and generate the translated version
     output_pdf = process_manga_pdf(file_location)
     
-    # Return the translated PDF for download
-    return FileResponse(path=output_pdf, filename="translated_" + file.filename)
+    with open(output_pdf, 'rb') as f:
+        res = supabase.storage.from_("output-files").upload(file=f,path=datetime.now().strftime("%m%d%Y-%H%M%S") + '.pdf', file_options={"content-type": "application/pdf"})
+        data = res.json()
+        print(data)
+
+        # Return the translated PDF for download
+        return data
 
 if __name__ == "__main__":
     import uvicorn

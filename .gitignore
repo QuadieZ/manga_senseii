@@ -166,3 +166,7 @@
 
 # data/
 # bounding_box_images/
+
+output_images/*
+uploads/*
+.env
